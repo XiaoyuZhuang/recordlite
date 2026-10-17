@@ -6,9 +6,9 @@ import android.content.SharedPreferences;
 final class RecordingSettings {
     String codec = "opus";
     int sampleRate = 16000;
-    int bitrate = 6000;
+    int bitrate = 12000;
     boolean skipSilence = true;
-    int thresholdDb = -42;
+    int thresholdDb = -30;
     int tailMs = 1200;
     int chunkMinutes = 60;
 
