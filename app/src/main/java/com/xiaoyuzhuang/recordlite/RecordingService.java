@@ -11,6 +11,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.widget.Toast;
 import android.util.Log;
 
@@ -24,6 +25,9 @@ public final class RecordingService extends Service {
 
     static volatile boolean isRunning;
     static volatile String status = "尚未开始录音";
+    static volatile long startedElapsedMs;
+    static volatile long activeFileBytes;
+    static volatile long retainedAudioMs;
 
     private RecorderEngine engine;
     private Thread worker;
@@ -60,13 +64,22 @@ public final class RecordingService extends Service {
             File base = getExternalFilesDir(android.os.Environment.DIRECTORY_MUSIC);
             if (base == null) throw new IllegalStateException("无法访问录音存储空间");
             File dir = new File(base, "RecordLite");
-            engine = new RecorderEngine(settings, dir, info -> {
-                status = info;
-                main.post(() -> {
-                    NotificationManager nm = getSystemService(NotificationManager.class);
-                    nm.notify(NOTIFICATION_ID, notification(info));
-                });
+            engine = new RecorderEngine(settings, dir, new RecorderEngine.Listener() {
+                @Override public void onInfo(String info) {
+                    status = info;
+                    main.post(() -> {
+                        NotificationManager nm = getSystemService(NotificationManager.class);
+                        nm.notify(NOTIFICATION_ID, notification(info));
+                    });
+                }
+                @Override public void onProgress(long currentBytes, long savedDurationMs) {
+                    activeFileBytes = currentBytes;
+                    retainedAudioMs = savedDurationMs;
+                }
             });
+            activeFileBytes = 0;
+            retainedAudioMs = 0;
+            startedElapsedMs = SystemClock.elapsedRealtime();
             isRunning = true;
             worker = new Thread(() -> {
                 try {
@@ -78,6 +91,7 @@ public final class RecordingService extends Service {
                             status, Toast.LENGTH_LONG).show());
                 } finally {
                     isRunning = false;
+                    activeFileBytes = 0;
                     engine = null;
                     if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
                     stopForeground(STOP_FOREGROUND_REMOVE);
