@@ -8,7 +8,7 @@ android {
         applicationId 'com.xiaoyuzhuang.recordlite'
         minSdk 29
         targetSdk 35
-        versionCode (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+        versionCode = Integer.parseInt(System.getenv('GITHUB_RUN_NUMBER') ?: '1')
         versionName "1.0." + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
     }
     signingConfigs {
