@@ -2,6 +2,10 @@ name: Signed Release APK
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/signed-release.yml'
 
 permissions:
   contents: write
