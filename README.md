@@ -1,7 +1,50 @@
 # RecordLite · 轻录
 
-一款以超低码率、长时间录音、静音跳过为目标的 Android 录音应用。
+一款为长时间语音记录设计的轻量 Android 录音软件：超低码率、静音跳过、小时分卷、本机试听和导出。
 
-> 项目正在开发中。首次公开版本的源码与签名工作流会在后续提交中完善，APK 暂不发布。
+## 核心功能
 
-详见后续源码中的使用说明。
+- Android 原生 MediaCodec + MediaMuxer：优先 Opus/Ogg，另有 AAC/M4A 兼容模式；均为单声道。
+- 可设置 8/16/24/48 kHz 采样率和 4–64 kbps 目标码率（具体支持情况以手机编码器为准）。
+- 持续监听音量，RMS 小于自定义 dBFS 阈值时停止写入声音数据；语音前预留 400 ms、语音后保留可调拖尾。可完全关闭静音跳过。
+- 15/30/60/120 分钟分卷（在有声音时生成文件，持续纯静音不生成空录音）。
+- 为每份音频生成同名 .csv，对照原始 UTC 时间与压缩后音频位置，方便 AI 分析时间线。
+- 录音前台服务：锁屏后继续工作，常驻通知和停止按钮；无联网权限，不会自行上传。
+- 在应用内试听、导出录音及时间表，或删除音频文件。
+
+## 容量估计
+
+文件大小主要取决于比特率及被保留的时长。6 kbps 连续录制 24 小时约为 64.8 MB；如果跳过 90% 的时间，理论音频数据约 6.5 MB。Ogg/M4A 封装开销和设备对目标码率的实际实现可能导致差异。静音跳过主要节省存储，并不意味着麦克风和 CPU 能按比例省电。
+
+默认建议：Opus、16 kHz、6 kbps、-42 dBFS 门限、1.2 秒拖尾、60 分钟分卷。
+
+**请先短录试听。** 极低码率可能丢失细节。音量门限不是语言识别：耳语可能被删，背景噪声可能被保留。重要场合请关闭静音跳过或降低阈值（如 -50 dBFS）。部分手机的 Opus 参数可能不受支持，遇到异常时改用 AAC/16 kHz/16 kbps。
+
+## 存储与隐私
+
+音频保存在应用专属的 Music/RecordLite 文件夹，通过“导出音频”和“导出时间表”用系统文件选择器复制到任意目录。卸载应用可能删除原始录音，务必及时导出备份。意外杀进程时，未完成的 .pending 文件可能无法播放；前台服务及唤醒锁也无法绝对避免厂商省电策略终止录音。启动录音需用户主动在可见界面点击按钮。
+
+CSV 格式：
+audio_start_ms,audio_end_ms,wall_start_utc,wall_end_utc
+
+每行是一个保留的连续声音区间。由于静音已被真正省略，音频内部时长和真实时间不相等；分析时间戳时需结合 CSV。建议将两份文件一起交给 AI。
+
+请遵守当地录音及隐私法律，尊重相关人员的知情权。
+
+## 构建与发布
+
+- Java 17；Android Gradle Plugin 8.7.3；Gradle 8.9；compileSdk/targetSdk 35；minSdk 29 (Android 10)。
+- Android Studio 打开仓库即可同步项目。CLI 需要安装 Android SDK/JDK 17/Gradle 8.9，可运行 gradle :app:assembleDebug。
+- GitHub Actions 发布工作流 **Signed Release APK** 只有手动触发 (workflow_dispatch)；提交源码不会自动生成 APK 或 Release。
+- 发布前前往 Settings → Secrets and variables → Actions，配置 4 项 Repository secrets：
+  - KEYSTORE_BASE64：签名 .jks 文件的完整单行 Base64
+  - KEYSTORE_PASSWORD：密钥库密码
+  - KEY_ALIAS：别名
+  - KEY_PASSWORD：别名私钥密码
+- 配好之后，在 Actions → Signed Release APK → Run workflow 才开始编译并发布 GitHub Release。输出文件名 RecordLite-v1.0.X.apk。
+- 签名密钥绝不能提交到公开仓库；**后续版本必须复用同一密钥才能覆盖安装。** 默认包名 com.xiaoyuzhuang.recordlite。
+- 本次阶段按要求不触发 APK 编译和发布；签名配置由仓库所有者完成。
+
+## 兼容性提醒
+
+不同品牌系统对后台麦克风、音频编解码器和电池管理的限制不同。请在手机上分别测试短录、锁屏一小时、低码率音质、静音恢复录音、分卷、导出和意外中断场景，再用于正式的全天记录。

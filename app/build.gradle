@@ -1,0 +1,35 @@
+plugins {
+    id 'com.android.application'
+}
+android {
+    namespace 'com.xiaoyuzhuang.recordlite'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.xiaoyuzhuang.recordlite'
+        minSdk 29
+        targetSdk 35
+        versionCode (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+        versionName "1.0." + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+    }
+    signingConfigs {
+        release {
+            def storePath = System.getenv('SIGNING_STORE_FILE')
+            if (storePath) {
+                storeFile file(storePath)
+                storePassword System.getenv('SIGNING_STORE_PASSWORD')
+                keyAlias System.getenv('SIGNING_KEY_ALIAS')
+                keyPassword System.getenv('SIGNING_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (System.getenv('SIGNING_STORE_FILE')) signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
