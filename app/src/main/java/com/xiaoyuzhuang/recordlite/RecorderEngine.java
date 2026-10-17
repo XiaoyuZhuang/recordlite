@@ -24,7 +24,10 @@ import java.util.Locale;
  * Only retained PCM is passed to MediaCodec. A CSV maps its compact time to UTC.
  */
 final class RecorderEngine {
-    interface Listener { void onInfo(String info); }
+    interface Listener {
+        void onInfo(String info);
+        void onProgress(long currentBytes, long savedDurationMs);
+    }
 
     private static final int FRAME_MS = 20;
     private static final int PRE_ROLL_MS = 400;
@@ -42,6 +45,7 @@ final class RecorderEngine {
     private long segmentAudioStart;
     private long latestWallEnd;
     private int completedFiles;
+    private long lastProgressMs;
 
     private static final class Frame {
         final short[] pcm;
@@ -101,6 +105,11 @@ final class RecorderEngine {
                     preRoll.clear();
                 }
                 process(new Frame(pcm, now - FRAME_MS));
+                if (now - lastProgressMs >= 700) {
+                    lastProgressMs = now;
+                    listener.onProgress(writer == null ? 0 : writer.pendingFile.length(),
+                            writer == null ? 0 : writer.durationMs());
+                }
             }
         } finally {
             if (recorder != null) {
@@ -167,6 +176,7 @@ final class RecorderEngine {
         EncodedFile closing = writer;
         writer = null;
         if (closing.finish()) completedFiles++;
+        listener.onProgress(0, 0);
     }
 
     private static double dbfs(short[] pcm) {
