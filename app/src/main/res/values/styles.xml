@@ -1,9 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+    <style name="AppTheme" parent="@style/AppThemeLight"/>
+    <style name="AppThemeLight" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:colorAccent">#087D71</item>
-        <item name="android:statusBarColor">#0C403A</item>
-        <item name="android:navigationBarColor">#0C403A</item>
+        <item name="android:statusBarColor">#F6F9F8</item>
+        <item name="android:navigationBarColor">#F6F9F8</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+    <style name="AppThemeDark" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">#5BDEC3</item>
+        <item name="android:statusBarColor">#0D1716</item>
+        <item name="android:navigationBarColor">#0D1716</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 </resources>
