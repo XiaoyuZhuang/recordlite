@@ -841,21 +841,31 @@ public final class MainActivity extends Activity {
         if (dir == null) return;
         merging = true;
         updateSelection();
-        if (mergeProgress != null)
-            mergeProgress.setText("正在合并 " + chosen.size() + " 个分卷…");
+        if (mergeProgress != null) {
+            mergeProgress.setVisibility(View.VISIBLE);
+            mergeProgress.setText("准备合并 " + chosen.size() + " 个分卷 · 0%");
+        }
+        if (mergeBar != null) {
+            mergeBar.setVisibility(View.VISIBLE);
+            mergeBar.setProgress(0);
+        }
         new Thread(() -> {
             try {
-                File merged = AudioMerger.merge(chosen, dir, (done, total) ->
+                File merged = AudioMerger.merge(chosen, dir, (done, total, percent) ->
                         runOnUiThread(() -> {
-                            if (mergeProgress != null)
-                                mergeProgress.setText("正在合并 " + done + " / " + total);
+                            if (mergeProgress != null) {
+                                mergeProgress.setText("合并进度 " + percent + "% · 已处理 "
+                                        + done + "/" + total + " 个分卷");
+                            }
+                            if (mergeBar != null) mergeBar.setProgress(percent);
                         }));
                 runOnUiThread(() -> {
                     merging = false;
-                    selectedPaths.clear();
+                    // Keep the original chunks selected so they can be deleted
+                    // together after the user verifies the merged file.
                     if (page == RECORDINGS) renderPage();
-                    Toast.makeText(this, "已生成 " + merged.getName(),
-                            Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "合并成功，原分卷仍被选中；确认无误后可批量删除",
+                            Toast.LENGTH_LONG).show();
                     if (share) shareFile(merged);
                     else saveFile(merged);
                 });
@@ -863,6 +873,7 @@ public final class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     merging = false;
                     updateSelection();
+                    if (mergeBar != null) mergeBar.setVisibility(View.GONE);
                     if (mergeProgress != null)
                         mergeProgress.setText("合并失败：" + e.getMessage());
                     Toast.makeText(this, "合并失败：" + e.getMessage(),
