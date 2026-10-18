@@ -2,6 +2,7 @@ package com.xiaoyuzhuang.recordlite;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.Intent;
@@ -20,8 +21,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.os.VibrationEffect;
-import android.os.Vibrator;
+import android.view.HapticFeedbackConstants;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.CheckBox;
@@ -29,6 +29,7 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -159,8 +160,50 @@ public final class MainActivity extends Activity {
         return (int) (getResources().getDisplayMetrics().density * v + .5f);
     }
 
+    private boolean isTouchFeedbackEnabled() {
+        return getSharedPreferences("interaction", MODE_PRIVATE)
+                .getBoolean("touch_feedback", true);
+    }
+
+    /**
+     * View haptics follow the system-wide touch feedback switch automatically.
+     * Do not use flags that override the user's Android haptic preferences.
+     */
+    private void feedback(View view) {
+        if (isTouchFeedbackEnabled() && view.isEnabled()) {
+            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        }
+    }
+
+    private final class HapticTextView extends TextView {
+        HapticTextView(Context context) { super(context); }
+
+        @Override public boolean performClick() {
+            if (isEnabled() && hasOnClickListeners()) feedback(this);
+            return super.performClick();
+        }
+    }
+
+    private final class HapticCheckBox extends CheckBox {
+        HapticCheckBox(Context context) { super(context); }
+
+        @Override public boolean performClick() {
+            if (isEnabled()) feedback(this);
+            return super.performClick();
+        }
+    }
+
+    private final class HapticSwitch extends Switch {
+        HapticSwitch(Context context) { super(context); }
+
+        @Override public boolean performClick() {
+            if (isEnabled()) feedback(this);
+            return super.performClick();
+        }
+    }
+
     private TextView text(String message, int sp, int color, boolean bold) {
-        TextView t = new TextView(this);
+        TextView t = new HapticTextView(this);
         t.setText(message);
         t.setTextSize(sp);
         t.setTextColor(color);
@@ -300,12 +343,8 @@ public final class MainActivity extends Activity {
         stopButton = action("■  停止录音", false);
         addSpace(body, startButton, 0, 10);
         addSpace(body, stopButton, 0, 8);
-        startButton.setOnClickListener(v -> {
-            vibrate();
-            requestStart();
-        });
+        startButton.setOnClickListener(v -> requestStart());
         stopButton.setOnClickListener(v -> {
-            vibrate();
             startService(new Intent(this, RecordingService.class)
                     .setAction(RecordingService.ACTION_STOP));
             statusLabel.setText("正在停止并完成文件写入…");
@@ -328,16 +367,6 @@ public final class MainActivity extends Activity {
 
         body.addView(text("录音时长包含静音；当前大小只显示正在写入的分卷。"
                 + "自动分卷与静音过滤不会改变原本的时间顺序。", 12, muted, false));
-    }
-
-    private void vibrate() {
-        try {
-            Vibrator vibrator = getSystemService(Vibrator.class);
-            if (vibrator != null && vibrator.hasVibrator()) {
-                vibrator.vibrate(VibrationEffect.createOneShot(45,
-                        VibrationEffect.DEFAULT_AMPLITUDE));
-            }
-        } catch (Exception ignored) { }
     }
 
     private void requestStart() {
@@ -438,7 +467,7 @@ public final class MainActivity extends Activity {
 
         section("静音检测");
         LinearLayout silencePanel = panel();
-        CheckBox enabled = new CheckBox(this);
+        CheckBox enabled = new HapticCheckBox(this);
         enabled.setText("跳过没有明显声音的时段");
         enabled.setTextColor(foreground);
         enabled.setButtonTintList(ColorStateList.valueOf(accent));
@@ -490,6 +519,24 @@ public final class MainActivity extends Activity {
         addSpace(body, text("分卷是定时将录音分别保存为多个文件，不会删除声音。"
                 + "在“已保存录音”中可以多选分卷，无损合并并分享。", 12, muted, false),
                 2, 5);
+
+        section("触觉反馈");
+        LinearLayout feedbackPanel = panel();
+        HapticSwitch feedbackSwitch = new HapticSwitch(this);
+        feedbackSwitch.setText("点击时震动");
+        feedbackSwitch.setTextColor(foreground);
+        feedbackSwitch.setTextSize(14);
+        feedbackSwitch.setShowText(false);
+        feedbackSwitch.setThumbTintList(ColorStateList.valueOf(accent));
+        feedbackSwitch.setChecked(isTouchFeedbackEnabled());
+        feedbackSwitch.setOnCheckedChangeListener((view, checked) ->
+                getSharedPreferences("interaction", MODE_PRIVATE).edit()
+                        .putBoolean("touch_feedback", checked).apply());
+        feedbackPanel.addView(feedbackSwitch);
+        feedbackPanel.addView(text("默认开启，并遵循手机系统的触感设置。" +
+                "关闭后主页按钮、底部标签页和录音管理操作均不再提供点击震动。",
+                12, muted, false));
+        addSpace(body, feedbackPanel, 2, 5);
 
         section("外观");
         String[] modes = {"跟随系统（默认）", "浅色模式", "深色模式"};
@@ -693,7 +740,7 @@ public final class MainActivity extends Activity {
         for (File f : files) {
             LinearLayout card = panel();
             card.setPadding(dp(12), dp(9), dp(12), dp(10));
-            CheckBox choose = new CheckBox(this);
+            CheckBox choose = new HapticCheckBox(this);
             choose.setButtonTintList(ColorStateList.valueOf(accent));
             choose.setTextColor(foreground);
             choose.setTextSize(13);
