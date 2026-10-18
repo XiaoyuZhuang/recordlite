@@ -560,7 +560,8 @@ public final class MainActivity extends Activity {
     }
 
     private void renderRecordings() {
-        title("已保存的录音", "勾选多个文件，可合并后分享或保存");
+        title("已保存的录音", "勾选多个文件，可合并、导出或批量删除");
+        renderPlaybackControls();
         File[] files = audioFiles();
 
         LinearLayout selection = new LinearLayout(this);
@@ -596,8 +597,19 @@ public final class MainActivity extends Activity {
         addSpace(body, paired(mergeShareButton, mergeSaveButton, 10), 8, 8);
         mergeShareButton.setOnClickListener(v -> mergeSelected(true));
         mergeSaveButton.setOnClickListener(v -> mergeSelected(false));
-        mergeProgress = text("", 12, accent, false);
+        deleteSelectedButton = action("删除已选录音", false);
+        deleteSelectedButton.setTextColor(dark ? 0xFFFFABAE : 0xFFAF3840);
+        addSpace(body, deleteSelectedButton, 0, 8);
+        deleteSelectedButton.setOnClickListener(v -> deleteSelected());
+        mergeProgress = text("", 13, accent, true);
+        mergeProgress.setVisibility(merging ? View.VISIBLE : View.GONE);
         body.addView(mergeProgress);
+        mergeBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        mergeBar.setMax(100);
+        mergeBar.setProgressTintList(ColorStateList.valueOf(accent));
+        mergeBar.setProgressBackgroundTintList(ColorStateList.valueOf(secondary));
+        mergeBar.setVisibility(merging ? View.VISIBLE : View.GONE);
+        addSpace(body, mergeBar, 4, 8);
 
         if (files == null || files.length == 0) {
             addSpace(body, text("暂无录音。\n在主页结束录音后，完整文件会显示在这里。",
@@ -646,8 +658,10 @@ public final class MainActivity extends Activity {
         boolean enabled = !selectedPaths.isEmpty() && !merging;
         mergeShareButton.setEnabled(enabled);
         mergeSaveButton.setEnabled(enabled);
+        deleteSelectedButton.setEnabled(enabled);
         mergeShareButton.setAlpha(enabled ? 1f : .42f);
         mergeSaveButton.setAlpha(enabled ? 1f : .42f);
+        deleteSelectedButton.setAlpha(enabled ? 1f : .42f);
     }
 
     private void showFileOptions(File file) {
