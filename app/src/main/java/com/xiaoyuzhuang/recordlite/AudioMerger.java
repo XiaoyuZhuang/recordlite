@@ -4,6 +4,7 @@ import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
+import android.os.SystemClock;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -23,10 +24,18 @@ import java.util.Locale;
  * by appending complete Ogg or MP4 containers byte-for-byte.
  */
 final class AudioMerger {
-    interface Progress { void onFile(int completed, int total); }
+    interface Progress { void onProgress(int completed, int total, int percent); }
 
     static File merge(List<File> ordered, File directory, Progress callback) throws Exception {
         if (ordered.size() < 2) throw new IllegalArgumentException("至少选择两个分卷");
+        long totalSourceBytes = 0;
+        for (File audio : ordered) {
+            if (!audio.isFile()) throw new IllegalArgumentException("录音文件不存在：" + audio.getName());
+            totalSourceBytes += Math.max(1L, audio.length());
+        }
+        final long allBytes = Math.max(1L, totalSourceBytes);
+        long completedBytes = 0L;
+        long lastReported = 0L;
         if (!directory.isDirectory() && !directory.mkdirs()) {
             throw new IllegalStateException("无法创建合并文件目录");
         }
@@ -98,6 +107,7 @@ final class AudioMerger {
                         long frameDurationUs = mime.equals("audio/mp4a-latm")
                                 ? Math.max(1, 1_024_000_000L / rate) : 20_000L;
                         long sampleCount = 0;
+                        long sampledBytes = 0;
                         while (true) {
                             buffer.clear();
                             int size = extractor.readSampleData(buffer, 0);
@@ -118,6 +128,16 @@ final class AudioMerger {
                             muxer.writeSampleData(trackIndex, buffer, sampleInfo);
                             previousUs = sampleInfo.presentationTimeUs;
                             sampleCount++;
+                            sampledBytes += size;
+                            long now = SystemClock.elapsedRealtime();
+                            if (now - lastReported >= 250) {
+                                lastReported = now;
+                                long currentBytes = completedBytes +
+                                        Math.min(file.length(), sampledBytes);
+                                int percent = (int) Math.min(99L,
+                                        currentBytes * 100L / allBytes);
+                                callback.onProgress(n, ordered.size(), percent);
+                            }
                             extractor.advance();
                         }
                         long nextOffset = sampleCount == 0
@@ -127,7 +147,9 @@ final class AudioMerger {
                     } finally {
                         extractor.release();
                     }
-                    callback.onFile(n + 1, ordered.size());
+                    completedBytes += Math.max(1L, file.length());
+                    callback.onProgress(n + 1, ordered.size(),
+                            (int) Math.min(99L, completedBytes * 100L / allBytes));
                 }
             }
             if (!muxerStarted || offsetUs <= 0) {
@@ -141,6 +163,7 @@ final class AudioMerger {
                 throw new IllegalStateException("无法完成合并文件保存");
             }
             successful = true;
+            callback.onProgress(ordered.size(), ordered.size(), 100);
             return target;
         } finally {
             if (muxer != null) {
