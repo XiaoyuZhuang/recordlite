@@ -652,6 +652,133 @@ public final class MainActivity extends Activity {
         updateSelection();
     }
 
+    private void renderPlaybackControls() {
+        playbackCard = panel();
+        playbackTitle = text("当前试听", 13, foreground, true);
+        playbackTitle.setMaxLines(2);
+        playbackTitle.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        playbackCard.addView(playbackTitle);
+        playbackTimes = text("00:00 / 00:00", 12, muted, false);
+        addSpace(playbackCard, playbackTimes, 5, 1);
+        playbackSeek = new SeekBar(this);
+        playbackSeek.setMax(1000);
+        playbackSeek.setProgressTintList(ColorStateList.valueOf(accent));
+        playbackSeek.setThumbTintList(ColorStateList.valueOf(accent));
+        playbackSeek.setProgressBackgroundTintList(ColorStateList.valueOf(secondary));
+        playbackSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onStartTrackingTouch(SeekBar bar) {
+                seekingPlayback = true;
+            }
+            @Override public void onProgressChanged(SeekBar bar, int value, boolean fromUser) {
+                if (fromUser && player != null && playbackTimes != null) {
+                    try {
+                        playbackTimes.setText(elapsed(value) + " / " +
+                                elapsed(Math.max(0, player.getDuration())));
+                    } catch (IllegalStateException ignored) { }
+                }
+            }
+            @Override public void onStopTrackingTouch(SeekBar bar) {
+                if (player != null) {
+                    try { player.seekTo(bar.getProgress()); }
+                    catch (IllegalStateException ignored) { }
+                }
+                seekingPlayback = false;
+                updatePlaybackUi();
+            }
+        });
+        playbackCard.addView(playbackSeek);
+        playbackToggle = action("Ⅱ  暂停", false);
+        TextView stop = action("■  停止", false);
+        addSpace(playbackCard, paired(playbackToggle, stop, 10), 4, 2);
+        playbackToggle.setOnClickListener(v -> togglePlayback());
+        stop.setOnClickListener(v -> stopPlayback());
+        playbackCard.setVisibility(player == null ? View.GONE : View.VISIBLE);
+        addSpace(body, playbackCard, 0, 12);
+    }
+
+    private void updatePlaybackUi() {
+        if (playbackCard == null) return;
+        boolean available = player != null && playingFile != null;
+        playbackCard.setVisibility(available ? View.VISIBLE : View.GONE);
+        if (!available) return;
+        try {
+            int duration = Math.max(1, player.getDuration());
+            int position = Math.max(0, Math.min(duration, player.getCurrentPosition()));
+            playbackTitle.setText("正在试听 · " + playingFile.getName());
+            playbackTimes.setText(elapsed(position) + " / " + elapsed(duration));
+            if (!seekingPlayback) {
+                playbackSeek.setMax(duration);
+                playbackSeek.setProgress(position);
+            }
+            playbackToggle.setText(player.isPlaying() ? "Ⅱ  暂停" : "▶  继续");
+        } catch (IllegalStateException ignored) {
+            stopPlayback();
+        }
+    }
+
+    private void togglePlayback() {
+        if (player == null) return;
+        try {
+            if (player.isPlaying()) player.pause();
+            else player.start();
+            updatePlaybackUi();
+        } catch (IllegalStateException e) {
+            stopPlayback();
+        }
+    }
+
+    private void stopPlayback() {
+        MediaPlayer old = player;
+        player = null;
+        playingFile = null;
+        seekingPlayback = false;
+        if (old != null) {
+            try { old.release(); } catch (Exception ignored) { }
+        }
+        updatePlaybackUi();
+    }
+
+    private void deleteSelected() {
+        if (merging || selectedPaths.isEmpty()) return;
+        ArrayList<File> chosen = new ArrayList<>();
+        long totalBytes = 0;
+        for (String path : selectedPaths) {
+            File f = new File(path);
+            if (f.isFile() && (f.getName().endsWith(".ogg") ||
+                    f.getName().endsWith(".m4a"))) {
+                chosen.add(f);
+                totalBytes += f.length();
+            }
+        }
+        if (chosen.isEmpty()) {
+            selectedPaths.clear();
+            renderPage();
+            return;
+        }
+        final int count = chosen.size();
+        final long bytes = totalBytes;
+        new AlertDialog.Builder(this)
+                .setTitle("删除选中的 " + count + " 个录音？")
+                .setMessage("共 " + size(bytes) + "。对应的 CSV 时间表也会一并删除，且不可恢复。" +
+                        "\n\n如果刚合并完，请先试听并确认合并结果能正常播放，再清理原分卷。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("确认删除", (dialog, which) -> {
+                    int removed = 0, failed = 0;
+                    for (File f : chosen) {
+                        if (playingFile != null && playingFile.equals(f)) stopPlayback();
+                        if (f.delete()) {
+                            removed++;
+                            new File(f.getAbsolutePath() + ".csv").delete();
+                            selectedPaths.remove(f.getAbsolutePath());
+                        } else failed++;
+                    }
+                    Toast.makeText(this, "已删除 " + removed + " 个录音" +
+                            (failed > 0 ? "，失败 " + failed + " 个" : ""),
+                            Toast.LENGTH_LONG).show();
+                    renderPage();
+                }).show();
+    }
+
     private void updateSelection() {
         if (selectionLabel == null) return;
         selectionLabel.setText("已选 " + selectedPaths.size() + " 个");
@@ -679,13 +806,14 @@ public final class MainActivity extends Activity {
                                         .setMessage("录音与时间表会一起删除，且无法恢复。")
                                         .setNegativeButton("取消", null)
                                         .setPositiveButton("删除", (d, w) -> {
-                                            if (player != null) {
-                                                player.release();
-                                                player = null;
-                                            }
+                                            if (file.equals(playingFile)) stopPlayback();
                                             selectedPaths.remove(file.getAbsolutePath());
-                                            file.delete();
-                                            csv.delete();
+                                            if (file.delete()) {
+                                                csv.delete();
+                                            } else {
+                                                Toast.makeText(this, "删除失败，请重试",
+                                                        Toast.LENGTH_SHORT).show();
+                                            }
                                             renderPage();
                                         }).show();
                             }
