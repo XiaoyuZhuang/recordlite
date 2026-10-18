@@ -554,8 +554,12 @@ public final class MainActivity extends Activity {
         File[] files = home == null ? null :
                 home.listFiles(f -> f.isFile() &&
                         (f.getName().endsWith(".ogg") || f.getName().endsWith(".m4a")));
+        // Sort by actual file modification time, not lexicographical names.
+        // Merged files use a different filename prefix, so name sorting put
+        // older recordings ahead of the latest recordings.
         if (files != null) Arrays.sort(files,
-                Comparator.comparing(File::getName).reversed());
+                Comparator.comparingLong(File::lastModified).reversed()
+                        .thenComparing(Comparator.comparing(File::getName).reversed()));
         return files;
     }
 
@@ -618,16 +622,17 @@ public final class MainActivity extends Activity {
             return;
         }
 
-        // Entries are full-width cards. Short actions sit in two separate rows;
-        // no native Button min-width/insets can cause controls to overlap.
+        // Compact full-width cards with four evenly spaced actions in one row.
+        // TextView buttons have no platform minimum button width.
         for (File f : files) {
             LinearLayout card = panel();
+            card.setPadding(dp(12), dp(9), dp(12), dp(10));
             CheckBox choose = new CheckBox(this);
             choose.setButtonTintList(ColorStateList.valueOf(accent));
             choose.setTextColor(foreground);
             choose.setTextSize(13);
-            choose.setMinHeight(dp(62));
-            choose.setPadding(dp(3), dp(3), dp(3), dp(8));
+            choose.setMinHeight(dp(48));
+            choose.setPadding(dp(2), dp(2), dp(2), dp(3));
             choose.setText(f.getName() + "\n" + size(f.length()));
             choose.setChecked(selectedPaths.contains(f.getAbsolutePath()));
             choose.setOnCheckedChangeListener((button, checked) -> {
@@ -641,13 +646,24 @@ public final class MainActivity extends Activity {
             TextView share = action("分享", false);
             TextView save = action("保存", false);
             TextView more = action("更多", false);
-            addSpace(card, paired(play, share, 10), 3, 8);
-            card.addView(paired(save, more, 10));
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            TextView[] items = {play, share, save, more};
+            for (int k = 0; k < items.length; k++) {
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                        0, dp(44), 1f);
+                if (k > 0) lp.setMargins(dp(5), 0, 0, 0);
+                items[k].setTextSize(12);
+                items[k].setMinHeight(0);
+                items[k].setPadding(dp(1), 0, dp(1), 0);
+                actions.addView(items[k], lp);
+            }
+            addSpace(card, actions, 3, 0);
             play.setOnClickListener(v -> playFile(f));
             share.setOnClickListener(v -> shareFile(f));
             save.setOnClickListener(v -> saveFile(f));
             more.setOnClickListener(v -> showFileOptions(f));
-            addSpace(body, card, 8, 4);
+            addSpace(body, card, 5, 2);
         }
         updateSelection();
     }
