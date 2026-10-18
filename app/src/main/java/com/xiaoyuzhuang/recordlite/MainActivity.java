@@ -505,6 +505,72 @@ public final class MainActivity extends Activity {
         });
         addSpace(body, text("默认跟随手机系统，状态栏文字与背景颜色同步适配。",
                 12, muted, false), 2, 4);
+
+        section("关于与更新");
+        String currentVersion;
+        try {
+            currentVersion = getPackageManager()
+                    .getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            currentVersion = "未知";
+        }
+        addSpace(body, text("当前版本：v" + currentVersion, 13, muted, false), 0, 8);
+        TextView update = action("检查更新", false);
+        addSpace(body, update, 0, 8);
+        update.setOnClickListener(v -> checkForUpdate(update));
+        addSpace(body, text("仅在点击时查询 GitHub 最新 Release。" +
+                "有新版本会询问是否跳转至发布页，由你自行下载和安装。" +
+                "应用不会自动下载安装包。", 12, muted, false), 0, 4);
+    }
+
+    private void checkForUpdate(TextView button) {
+        button.setEnabled(false);
+        button.setText("正在检查 GitHub Release…");
+        new Thread(() -> {
+            try {
+                ReleaseChecker.Result result = ReleaseChecker.check(getApplicationContext());
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    button.setEnabled(true);
+                    button.setText("检查更新");
+                    if (result.hasUpdate) {
+                        new AlertDialog.Builder(this)
+                                .setTitle("发现新版本 " + result.latest)
+                                .setMessage("当前版本：v" + result.installed +
+                                        "\n最新版本：" + result.latest +
+                                        "\n\n是否打开 GitHub Release 页面自行下载？")
+                                .setNegativeButton("暂不", null)
+                                .setPositiveButton("前往发布页", (dialog, which) -> {
+                                    Intent intent = new Intent(Intent.ACTION_VIEW,
+                                            Uri.parse(result.releasePage));
+                                    try {
+                                        startActivity(intent);
+                                    } catch (Exception e) {
+                                        Toast.makeText(this, "无法打开浏览器，请稍后再试",
+                                                Toast.LENGTH_LONG).show();
+                                    }
+                                }).show();
+                    } else {
+                        new AlertDialog.Builder(this)
+                                .setTitle("已经是最新版本")
+                                .setMessage("当前版本：v" + result.installed +
+                                        "\nGitHub 最新版本：" + result.latest)
+                                .setPositiveButton("好的", null).show();
+                    }
+                });
+            } catch (Exception error) {
+                runOnUiThread(() -> {
+                    if (isFinishing() || isDestroyed()) return;
+                    button.setEnabled(true);
+                    button.setText("检查更新");
+                    new AlertDialog.Builder(this)
+                            .setTitle("检查更新失败")
+                            .setMessage("无法获取 GitHub Release 信息。请确认网络可访问 GitHub。" +
+                                    "\n\n" + error.getMessage())
+                            .setPositiveButton("好的", null).show();
+                });
+            }
+        }, "RecordLite-ReleaseCheck").start();
     }
 
     private void section(String value) {
