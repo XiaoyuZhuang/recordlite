@@ -26,6 +26,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -71,6 +72,12 @@ public final class MainActivity extends Activity {
     private ScrollView pageScroll;
     private TextView statusLabel, elapsedLabel, bytesLabel, startButton, stopButton;
     private TextView selectionLabel, mergeShareButton, mergeSaveButton, mergeProgress;
+    private TextView deleteSelectedButton, playbackTitle, playbackTimes, playbackToggle;
+    private SeekBar playbackSeek;
+    private LinearLayout playbackCard;
+    private ProgressBar mergeBar;
+    private File playingFile;
+    private boolean seekingPlayback;
     private boolean previousRunning, merging;
     private File pendingExport;
     private MediaPlayer player;
@@ -233,6 +240,13 @@ public final class MainActivity extends Activity {
         mergeShareButton = null;
         mergeSaveButton = null;
         mergeProgress = null;
+        mergeBar = null;
+        deleteSelectedButton = null;
+        playbackCard = null;
+        playbackTitle = null;
+        playbackTimes = null;
+        playbackToggle = null;
+        playbackSeek = null;
 
         if (page == RECORDINGS) renderRecordings();
         else if (page == SETTINGS) renderSettings();
@@ -247,6 +261,7 @@ public final class MainActivity extends Activity {
             if (target == RECORDINGS) renderPage();
             return;
         }
+        if (page == RECORDINGS && target != RECORDINGS) stopPlayback();
         page = target;
         renderPage();
     }
@@ -390,6 +405,7 @@ public final class MainActivity extends Activity {
             previousRunning = running;
             if (page == RECORDINGS && !merging) renderPage();
         }
+        if (page == RECORDINGS) updatePlaybackUi();
     }
 
     private void renderSettings() {
