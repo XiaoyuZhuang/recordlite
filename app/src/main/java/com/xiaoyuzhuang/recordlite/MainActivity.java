@@ -873,19 +873,42 @@ public final class MainActivity extends Activity {
     }
 
     private void playFile(File file) {
+        if (!file.isFile()) {
+            Toast.makeText(this, "文件已不存在", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (player != null && file.equals(playingFile)) {
+            togglePlayback();
+            return;
+        }
+        stopPlayback();
+        MediaPlayer fresh = new MediaPlayer();
         try {
-            if (player != null) { player.release(); player = null; }
-            player = new MediaPlayer();
-            player.setDataSource(file.getAbsolutePath());
-            player.setOnCompletionListener(mp -> {
-                mp.release();
-                if (player == mp) player = null;
+            fresh.setDataSource(file.getAbsolutePath());
+            fresh.setOnCompletionListener(mp -> {
+                if (mp != player) return;
+                try { mp.seekTo(0); }
+                catch (IllegalStateException ignored) { }
+                updatePlaybackUi();
             });
-            player.prepare();
+            fresh.setOnErrorListener((mp, what, extra) -> {
+                if (mp == player) stopPlayback();
+                Toast.makeText(this, "播放发生错误，请检查音频文件",
+                        Toast.LENGTH_LONG).show();
+                return true;
+            });
+            fresh.prepare();
+            player = fresh;
+            playingFile = file;
             player.start();
-            Toast.makeText(this, "正在试听", Toast.LENGTH_SHORT).show();
+            updatePlaybackUi();
+            pageScroll.smoothScrollTo(0, 0);
         } catch (Exception e) {
-            if (player != null) { player.release(); player = null; }
+            if (player == fresh) {
+                stopPlayback();
+            } else {
+                try { fresh.release(); } catch (Exception ignored) { }
+            }
             Toast.makeText(this, "播放失败：" + e.getMessage(), Toast.LENGTH_LONG).show();
         }
     }
@@ -955,11 +978,17 @@ public final class MainActivity extends Activity {
 
     @Override protected void onPause() {
         handler.removeCallbacks(refresher);
+        // Recording is independent of this activity. Only preview playback pauses.
+        if (player != null) {
+            try { if (player.isPlaying()) player.pause(); }
+            catch (IllegalStateException ignored) { }
+            updatePlaybackUi();
+        }
         super.onPause();
     }
 
     @Override protected void onDestroy() {
-        if (player != null) { player.release(); player = null; }
+        stopPlayback();
         super.onDestroy();
     }
 }
